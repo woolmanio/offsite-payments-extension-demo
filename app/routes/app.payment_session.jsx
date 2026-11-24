@@ -34,5 +34,11 @@ const createParams = ({id, gid, group, amount, currency, test, kind, customer, p
 )
 
 const buildRedirectUrl = (request, id) => {
+  // request.url is http:// behind a TLS-terminating tunnel/proxy, and Shopify
+  // checkout fails with a redirect_url that isn't https. Prefer the public app
+  // URL provided by the Shopify CLI (SHOPIFY_APP_URL).
+  const baseUrl = process.env.SHOPIFY_APP_URL?.replace(/\/$/, "");
+  if (baseUrl) return `${baseUrl}/app/payment_simulator/${id}`;
+
   return `${request.url.slice(0, request.url.lastIndexOf("/"))}/payment_simulator/${id}`
 }

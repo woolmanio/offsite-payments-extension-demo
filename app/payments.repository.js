@@ -122,12 +122,13 @@ export const getConfiguration = async (sessionId) => {
 }
 
 /**
- * Returns the configuration for the session if it exists, create it otherwise.
+ * Creates the configuration for the session, or updates it with the provided
+ * values if it already exists.
  */
 export const getOrCreateConfiguration = async (sessionId, config) => {
   const configuration = await prisma.configuration.upsert({
     where: { sessionId },
-    update: {},
+    update: config,
     create: { sessionId, ...config },
   })
   return configuration;
