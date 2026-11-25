@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-name = "<App Name>"
 client_id = "<API Client ID>"
+name = "<App Name>"
 application_url = "https://example.com"
 embedded = false
 
@@ -10,8 +10,6 @@ api_version = "2027-01"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# Leave the scopes empty for the first deployment. For next deployments uncomment the scopes with write_* permissions
-#scopes = "write_payment_gateways,write_payment_sessions"
 scopes = ""
 
 [auth]
