@@ -20,7 +20,7 @@ Buyer's browser ◀── redirect to /app/payment_simulator/<id> ────�
 
 ## Prerequisites
 
-- Node.js and the [Shopify CLI](https://shopify.dev/docs/apps/tools/cli).
+- Node.js and the [Shopify CLI](https://shopify.dev/docs/apps/tools/cli), installed globally. This guide was tested with CLI 5.0.2. Upgrade with `npm install -g @shopify/cli@latest`. The project does not install its own copy of the CLI, because a second local copy triggers a "two Shopify CLI installations" notice and the older versions behave differently from the prompts described here.
 - A Shopify organization with **Payments Partner** access. This is required. Create the dev store and the app in that organization.
 
 ## Setup
@@ -29,7 +29,7 @@ Buyer's browser ◀── redirect to /app/payment_simulator/<id> ────�
    ```shell
    shopify store create dev --demo-data --country FI
    ```
-   The CLI prompts for the organization, store name and plan. `--demo-data` populates the store with demo products, so you can check out later without adding any. `--country FI` creates a Finnish store. Keep `FI` in the extension's `supported_countries` (step 7).
+   The CLI prompts for the organization, store name and plan. `--demo-data` populates the store with demo products, so you can check out later without adding any. `--country FI` creates a Finnish store. Keep `FI` in the extension's `supported_countries` (step 10).
 
 2. **Create the app in the Dev Dashboard.** Give it a name and turn **embedding off**. Do not fill in anything else.
    Create the app here, not through the CLI.
@@ -39,67 +39,88 @@ Buyer's browser ◀── redirect to /app/payment_simulator/<id> ────�
    shopify app init --template https://github.com/woolmanio/offsite-payments-extension-demo
    ```
    The CLI prompts you:
-   - Choose your Payments Partner organization. Use the same organization that in which you create the app in step 2.
+   - Choose your Payments Partner organization, the same one in which you created the app in step 2.
    - When asked whether to create a new app or use an existing one, choose **use existing app** and select the app from step 2.
 
    `init` copies the project, but `shopify.app.toml` still contains the template's placeholders (`name = "<App Name>"`, `client_id = "<API Client ID>"`). The next step links it.
 
-4. **Link the project to the app.**
+4. **Install the dependencies.**
    ```shell
-   npm run config:link
+   npm install
    ```
-   Choose your organization, then **use existing app**, and select the app from step 2. If it asks for a configuration file name, the app name is fine. The CLI writes `shopify.app.<app-name>.toml` with the real `client_id` and makes it the active config. Delete the placeholder `shopify.app.toml` so it can't be picked up by mistake. If you ever have more than one linked config, switch with `npm run config:use <app-name>`.
+   Do this now so that a missing or broken dependency shows up before you start `dev`.
 
-   Then check that the active file contains:
+5. **Link the project to the app.** Use the globally installed Shopify CLI:
+   ```shell
+   shopify app config link
+   ```
+   The CLI asks:
+   - **Which organization do you want to use?** Your Payments Partner organization.
+   - **Create this project as a new app on Shopify?** Choose **No, connect it to an existing app**.
+   - **Which existing app is this for?** The app from step 2.
+   - **Configuration file name:** the app name is fine.
+
+   The CLI writes `shopify.app.<app-name>.toml` with the real `client_id` and makes it your default config. Delete the placeholder `shopify.app.toml` so it can't be picked up by mistake. If you ever have more than one linked config, switch with `shopify app config use <app-name>`.
+
+   Leave `scopes = ""` empty for now (step 8 adds them). Check the other values:
    ```toml
    embedded = false
-
-   [access_scopes]
-   scopes = "write_payment_gateways,write_payment_sessions"
 
    [webhooks]
    api_version = "<a stable API version>"
    ```
-   Replace the webhooks version if the CLI wrote one that has not been released yet. `application_url` and the redirect URLs are updated for you by `dev` (`automatically_update_urls_on_dev = true`).
+   The generated file already has `embedded = false` and a webhooks version (`2026-10` when this guide was written). Replace the version if it is one that has not been released yet. `application_url` stays `https://example.com` and `redirect_urls` stays empty until you run `dev` in step 9. These are the app's own URLs. They are not the extension's session URLs from step 10.
 
-5. **Make sure the extension exists.** Do this after linking (step 4): the extension is generated for the linked app. `extensions/` must contain a payments extension. If it is empty, generate one:
+6. **Create the extension.** Do this after linking (step 5), so it is generated for the linked app. Use the globally installed Shopify CLI:
    ```shell
-   npm run generate extension
+   shopify app generate extension
    ```
-   Choose **Payments extensions > Offsite**. This creates `extensions/<name>/shopify.extension.toml`.
+   Choose **Payments extensions > Offsite** and give the extension a name. This creates `extensions/<name>/shopify.extension.toml`. The command's "next steps" suggest `shopify app dev`. Ignore that and use `npm run dev` in step 9, which also sets up the database.
 
-6. **Start the dev server.**
+7. **Deploy once, with empty scopes.**
+   ```shell
+   npm run deploy
+   ```
+   Do this before adding the payment scopes. Deploying and running `dev` with the `write_*` scopes already in the toml failed with a permission error (the CLI listed `write_payment_gateways, write_payment_sessions, read_payment_gateways, read_payment_sessions` and `Failed to start dev preview`). Deploying first with empty scopes, then adding them and running `dev`, worked on two apps. Shopify's own tutorial also says to leave the scopes out at first. The cause was not isolated. See [When to deploy](#when-to-deploy).
+
+8. **Add the payment scopes.** In `shopify.app.<app-name>.toml`:
+   ```toml
+   [access_scopes]
+   scopes = "write_payment_gateways,write_payment_sessions"
+   ```
+
+9. **Start the dev server.**
    ```shell
    npm run dev
    ```
-   Select your dev store when asked and note the **tunnel URL** the CLI prints (for example `https://xxxx.trycloudflare.com`). Use `npm run dev` rather than `shopify app dev`: the `predev` script runs the Prisma setup that creates the session table.
+   Select your dev store when asked. When asked whether Shopify should override the app URLs when running `app dev` against your dev store, answer **Yes, automatically update**. Then note the **tunnel URL** it prints (for example `https://xxxx.trycloudflare.com`). You need it for the next step, and with the default tunnel it is only known after `dev` starts and changes on every run. Use `npm run dev` rather than `shopify app dev`: the `predev` script runs the Prisma setup (`prisma generate` and `prisma migrate deploy`) that creates the session table. `shopify app dev` skips it.
 
-7. **Point the extension at your local app.** In `shopify.extension.toml`:
+10. **Point the extension at your local app.** The generated extension has placeholder session URLs, and both the host and the path are wrong for this app:
+   ```toml
+   payment_session_url = "https://example.com/payment"
+   refund_session_url  = "https://example.com/refund"
+   ```
+   Replace them with your tunnel URL and this app's routes (note the `/app` prefix and the `_session` suffix):
    ```toml
    payment_session_url = "https://<tunnel>/app/payment_session"
    refund_session_url  = "https://<tunnel>/app/refund_session"
    ```
-   The paths must match the route file names, including the `/app` prefix. For manual capture and void, also set `capture_session_url` (`/app/capture_session`) and `void_session_url` (`/app/void_session`). Saving the file prints `Updated dev preview on <store>`.
-   Make sure `supported_countries` includes `"FI"` to match the store from step 1: `supported_countries = ["FI"]`. A newly generated extension lists `"US"` by default.
+   The paths must match the route file names (`app.payment_session.jsx`, `app.refund_session.jsx`). `/payment` and `/refund` do not exist in this app, so Shopify's request would never reach your routes. For manual capture and void, also set `capture_session_url` (`/app/capture_session`) and `void_session_url` (`/app/void_session`). Saving the file prints `Updated dev preview on <store>`. Repeat this edit with the new tunnel URL every time you restart `dev`.
 
-8. **Deploy once.**
-   ```shell
-   npm run deploy
-   ```
-   See [When to deploy](#when-to-deploy) for why.
+   Also make sure `supported_countries` includes `"FI"` to match the store from step 1: `supported_countries = ["FI"]`. A newly generated extension lists `"US"` by default.
 
-9. **Onboard the app.** Press `p` in the `dev` terminal to open the app home. Enter any **Account Name** (an identifier at your "provider"), tick **Ready?**, and submit. You should see "Settings updated!".
+11. **Onboard the app.** Press `p` in the `dev` terminal to open the app home. Enter any **Account Name** (an identifier at your "provider"), tick **Ready?**, and submit. You should see "Settings updated!".
 
-10. **Activate the provider in the store admin.** Go to **Settings > Payments**, open your payments app, turn on **test mode**, and click **Activate**.
+12. **Activate the provider in the store admin.** Go to **Settings > Payments**, open your payments app, turn on **test mode**, and click **Activate**.
 
-11. **Open the app home in the browser you will use for checkout**, on the current tunnel URL. The simulator page sits under the app's authenticated routes. A browser without an app session for the current tunnel once received `400 Could not find a shop, can't authenticate request`, and opening the app home first is the most likely reason it then worked. This was not isolated.
+13. **Open the app home in the browser you will use for checkout**, on the current tunnel URL. The simulator page sits under the app's authenticated routes. A browser without an app session for the current tunnel once received `400 Could not find a shop, can't authenticate request`, and opening the app home first is the most likely reason it then worked. This was not isolated.
 
-12. **Place a test order at the storefront checkout.** Open the storefront (use the password under **Online Store > Preferences** if it is protected), add one of the demo products to the cart, and check out. Choose your provider and click **Pay now**. Do not create the order with **Orders > Create order** in the admin: that never calls a payments app.
+14. **Place a test order at the storefront checkout.** Open the storefront (use the password under **Online Store > Preferences** if it is protected), add one of the demo products to the cart, and check out. Choose your provider and click **Pay now**. Do not create the order with **Orders > Create order** in the admin: that never calls a payments app.
     - The terminal shows `POST /app/payment_session 200`.
     - The browser lands on `/app/payment_simulator/<id>`. Choose **Resolve**, **Reject** or **Pending**. On Resolve, the order is marked paid.
     - When your app calls the Payments Apps API (on resolve, reject or pend, and when you submit the onboarding form), the terminal shows `[GraphQL] Making request…` and `[GraphQL] response: …`.
 
-13. **Try refunds, captures and voids (optional).** Start the action from the order in the admin. Shopify POSTs to the matching session URL. Then open `/app/dashboard` in the app, click **Simulate**, and resolve or reject it.
+15. **Try refunds, captures and voids (optional).** Start the action from the order in the admin. Shopify POSTs to the matching session URL. Then open `/app/dashboard` in the app, click **Simulate**, and resolve or reject it.
 
 ## Each development session
 
@@ -117,7 +138,7 @@ Buyer's browser ◀── redirect to /app/payment_simulator/<id> ────�
 
 **Deploy when:**
 - **It is the first run.** Observed here, and not explained by Shopify's documentation: the payment method did not appear at checkout until a version had been deployed and released, even though the dev preview was updating.
-- **You change access scopes.** Shopify's documentation says to update the toml and deploy. Each store then has to approve the new scopes, which on a development store usually means reopening or reinstalling the app.
+- **You change access scopes later.** Shopify's documentation says to update the toml and deploy. Each store then has to approve the new scopes, which on a development store usually means reopening or reinstalling the app.
 - **You want a store other than your dev store, or the released configuration, to see a change.**
 
 **You do not need to deploy when:**
@@ -151,12 +172,13 @@ Authenticate and query the Admin API with the `authenticate` export of `app/shop
 | Symptom | Likely cause and fix |
 |---|---|
 | Onboarding form crashes with `Cannot read properties of null (reading 'userErrors')` | The Payments Apps API returned an error. Read the `[GraphQL] response:` line in the terminal. |
-| `ACCESS_DENIED`, required access `write_payment_gateways` | The app's access token has no payment scopes. Put the scopes in the toml (step 4), run `npm run deploy`, run `shopify app dev clean`, delete the stale session (`sqlite3 prisma/dev.sqlite "DELETE FROM Session;"`), and start `dev` again. `select scope from Session;` should then list the scopes. |
+| `Failed to start dev preview`, with the four payment scopes listed under `app_access` | The scopes were in the toml before the app had been deployed. Set `scopes = ""`, run `npm run deploy`, put the scopes back (step 8) and run `npm run dev` again. Worked on two apps. The cause was not isolated. |
+| `ACCESS_DENIED`, required access `write_payment_gateways` | The app's access token has no payment scopes. Put the scopes in the toml (step 8), run `npm run deploy`, run `shopify app dev clean`, delete the stale session (`sqlite3 prisma/dev.sqlite "DELETE FROM Session;"`), and start `dev` again. `select scope from Session;` should then list the scopes. |
 | Provider cannot be activated, or the app keeps asking for setup | The stored configuration has `ready = false`. Resubmit the onboarding form with **Ready?** ticked. |
-| Provider is missing at checkout | Not deployed (step 8), not activated or test mode off (step 10), or the checkout country is not in `supported_countries`. Choosing the Test Payment Gateway never reaches your app. |
-| Nothing appears in the terminal when you pay | Wrong paths in the extension URLs (missing `_session` or `/app`), a stale tunnel host, or the order was created in the admin instead of at checkout. |
+| Provider is missing at checkout | Not deployed (step 7), not activated or test mode off (step 12), or the checkout country is not in `supported_countries`. Choosing the Test Payment Gateway never reaches your app. |
+| Nothing appears in the terminal when you pay | Wrong session URLs in the extension: the generated defaults (`https://example.com/payment` and `/refund`), paths missing `_session` or `/app`, or a stale tunnel host. Or the order was created in the admin instead of at checkout. |
 | Checkout says "There was an issue processing your payment" while the terminal shows `POST /app/payment_session 200` | The `redirect_url` must be https. See the first change under [Changes from the upstream template](#changes-from-the-upstream-template). |
-| Simulator page returns `400 Could not find a shop, can't authenticate request` | The browser has no app session for the current tunnel. Open the app home on the current tunnel (step 11) and retry. |
+| Simulator page returns `400 Could not find a shop, can't authenticate request` | The browser has no app session for the current tunnel. Open the app home on the current tunnel (step 13) and retry. |
 | `The table main.Session does not exist` | The Prisma setup did not run. Use `npm run dev`, or run `npm run setup`. |
 | "Payments App is not installed on this shop" | Uninstall and reinstall the app, or run `shopify app dev clean` and start `dev` again. |
 | Navigation inside the app logs you out | Use `Link` from `@remix-run/react`, not `<a>`, so the user stays authenticated. |
