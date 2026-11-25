@@ -16,4 +16,4 @@ yarn.lock
 
 # Ignore custom app configuration files except the example
 shopify.app.*.toml
-!shopify.app.example.toml
+!shopify.app.offsite-payment-app-demo.toml
