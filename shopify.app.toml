@@ -7,7 +7,9 @@ embedded = false
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_payment_gateways,write_payment_sessions"
+# Leave the scopes empty for the first deployment. For next deployments uncomment the scopes with write_* permissions
+scopes=""
+#scopes = "write_payment_gateways,write_payment_sessions"
 
 [auth]
 redirect_urls = [
