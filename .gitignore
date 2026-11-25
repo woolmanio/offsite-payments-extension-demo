@@ -13,3 +13,7 @@ database.sqlite
 .env
 package-lock.json
 yarn.lock
+
+# Ignore custom app configuration files except the example
+shopify.app.*.toml
+!shopify.app.example.toml
