@@ -9,8 +9,9 @@ type = "payments_extension"
 uid = "8a0e7aa0-858e-f4a2-7d9f-63cd429406f43cf2fb85"
  
 merchant_label = "Offsite Payments App Extension"
-payment_session_url = "<tunnel_url>/app/payment_session"
-refund_session_url = "<tunnel_url>/refund/app_refund_session"
+# replace "https://example.com" with the tunnel URL from 'npm run dev' terminal "*.trycloudflare.com"
+payment_session_url = "https://competent-crystal-pocket-robust.trycloudflare.com/app/payment_session"
+refund_session_url = "https://competent-crystal-pocket-robust.trycloudflare.com/refund/app_refund_session"
 # List of ISO 3166 (alpha-2) country codes your app is available for installation by merchants. Learn more:
 # https://www.iso.org/iso-3166-country-codes.html
 supported_countries = ["US"]
